@@ -1,0 +1,8 @@
+------------ vectGeoref.py changelog -------------------
+000	2013-11-12
+	added alternative way of inputting data
+	labeling origin/destination points added
+	info function added
+	help function added
+	module os is not needed any more
+	impianto
