@@ -376,6 +376,7 @@ class VectorGeorefDialog(QtGui.QDialog):
 	markerList1 = []	# lista dei marcatori del canvas1
 	markerList2 = []	# lista dei marcatori del canvas2
 	anTxtList = []		# lista delle annotazioni
+	checked_list = []	# lista delle righe scelte
 
 	def __init__(self, iface):
 		QtGui.QDialog.__init__(self)
@@ -436,6 +437,7 @@ class VectorGeorefDialog(QtGui.QDialog):
 		srcPntList = []
 		dstPntList = []
 		for [chek,oX,oY,dX,dY] in tmp:
+			#QMessageBox.about(self,'test',chek)
 			if chek == 'ok':
 				srcPntList.append([float(oX),float(oY),1.0])	# aggiunge la coordinata omogenea
 				dstPntList.append([float(dX),float(dY),1.0])
@@ -539,22 +541,49 @@ class VectorGeorefDialog(QtGui.QDialog):
 		nRow = self.ui.tableWidget.rowCount()
 		self.ui.tableWidget.insertRow(nRow)
 		for i,val in enumerate(dataList):
-			item = QtGui.QTableWidgetItem(unicode(val))
-			self.ui.tableWidget.setItem(nRow,i,item)
+
+			if i == 0:
+				item = QtGui.QTableWidgetItem()
+				item.setFlags(QtCore.Qt.ItemIsUserCheckable |QtCore.Qt.ItemIsEnabled)
+				item.setCheckState(QtCore.Qt.Unchecked)
+				self.ui.tableWidget.setItem(nRow,i,item)
+				self.ui.tableWidget.itemClicked.connect(self.handleItemClicked)
+			else:
+				item = QtGui.QTableWidgetItem(unicode(val))
+				self.ui.tableWidget.setItem(nRow,i,item)
+
+	def handleItemClicked(self, item):
+		try:
+			if item.checkState() == QtCore.Qt.Checked:
+				#QMessageBox.about(self,'test',str(item.row()))
+				self.checked_list.append(item.row())
+			else:
+				self.checked_list.remove(item.row())
+		except:
+			pass
 
 	def getValues(self):
 		"""
 			get the table values
 		"""
+		#QMessageBox.about(self,'chechedlist',str(self.checked_list))
 		nRow = self.ui.tableWidget.rowCount()
 		nCol = self.ui.tableWidget.columnCount()
 		data = []
 		for r in range(nRow):
 			riga = []
 			for c in range(nCol):
-				item = self.ui.tableWidget.item(r,c)
-				print item.text()
-				riga.append(item.text())
+				if c == 0:
+					if self.checked_list.count(r) != 0:
+						#QMessageBox.about(self,'riok',str(r))
+						riga.append('ok')
+					else:
+						riga.append('no')
+						#QMessageBox.about(self,'rino',str(r))
+				else:
+					item = self.ui.tableWidget.item(r,c)
+
+					riga.append(item.text())
 			data.append(riga)
 		return data
 
@@ -630,7 +659,7 @@ class VectorGeorefDialog(QtGui.QDialog):
 #				print "punto destinazione",destX,destY
 				self.markerList1.append(self.pntHighligth(self.canvas,pnt,color=QColor(250,150,0),size=25))
 				# accoda alla tabella
-				self.insertNewRow(['ok',self.origX,self.origY,destX,destY])
+				self.insertNewRow(['',self.origX,self.origY,destX,destY])
 				# try to disconnect all signals
 				if self.isClickToolActivated == 1:
 					self.clickTool1.canvasClicked.disconnect()
