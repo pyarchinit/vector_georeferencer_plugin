@@ -6,9 +6,15 @@
  A visual tool to georeferencing vector layers
                              -------------------
         begin                : 2013-11-11
+        updated              : 2014-02-10 (027)
         copyright            : (C) 2013 by Giuliano Curti
         email                : giulianc51@gmail.com
  ***************************************************************************/
+
+usare lo stesso formato dei CTP del georef raster
+usare anche ON/OFF per la checkbox dei CP
+eliminare il layer dall'elenco degli snap quando lo si elimina dal canvas2
+attivare/eliminare tasto QUIT dalla dialog form
 
 /***************************************************************************
  *                                                                         *
@@ -18,6 +24,10 @@
  *   (at your option) any later version.                                   *
  *                                                                         *
  ***************************************************************************/
+027	2014-02-10
+	settaggio del CRS corretto del nuovo layer (CRS corrente)
+	uso dello snapper nativo
+
 """
 
 from PyQt4 import QtCore, QtGui
@@ -35,21 +45,19 @@ from ui_vectorgeoref import Ui_VectorGeoref
 # ------------ matrix functions ------------
 
 def printMatrix(mat):
-	pass
-##	nr = len(mat)
-##	nc = len(mat[0])
-##	print ' ',
-##	for c in range(nc):
-##		print '%5s ' % (c+1),
-##	print
-##	print "------" * (nc+2)
-##	for r in range(nr):
-##		print r+1, "|",
-##		for c in range(nc):
-##			pass
-##			#print '%5.2f ' % mat[r][c],
-##		print
-##	print "------" * (nc+2)
+	nr = len(mat)
+	nc = len(mat[0])
+	print ' ',
+	for c in range(nc):
+		print '%5s ' % (c+1),
+	print
+	print "------" * (nc+2)
+	for r in range(nr):
+		print r+1, "|",
+		for c in range(nc):
+			print '%5.2f ' % mat[r][c],
+		print
+	print "------" * (nc+2)
 
 def nullMatrix(nr,nc):
 	"""
@@ -206,10 +214,6 @@ def lsm2(old,new):
 	printMatrix(tn)
 	print "matrice aggiunta"
 	nr = len(mat)
-#	for i in range(len(tn[0])):	# per ogni colonna del termine noto 
-#		myList = [[0,i]]	# questa strana forma Ã¨ dovuta a precedenti (vedi rank())	
-#		tmp = prelievoColonne(tn,myList)
-#		mat = adjoint(mat,nr,tmp)
 	mat = adjoint(mat,nr,tn)
 	printMatrix(mat)
 	print "Echelon form"
@@ -236,57 +240,6 @@ def lsm2(old,new):
 		sol.append(tmp[0])	# questa operazione Ã¨ empirica, serve ad eliminare un livello di parentesi, controllare
 	printMatrix(sol)
 	return sol
-
-# -------- retrieving functions -------
-
-def snapPoint(layer,point,eps):
-	"""
-		Seleziona il vertice di una feature più vicino al mouse;
-	"""
-	print "interrogo il layer",layer.name(),"con tolleranza",eps
-
-	# setup the provider select to filter results based on a rectangle
-	pntGeom = QgsGeometry.fromPoint(point)  
-	# scale-dependent buffer of 5 pixels-worth of map units
-	pntBuff = pntGeom.buffer(eps,0) 
-	rect = pntBuff.boundingBox()
-	# create the select statement
-#	print "interrogo il layer",layer.name()
-	layer.select(rect,True)	# prende quelli che intersecano	
-	# ha trovato qualcosa?
-
-	print "trovate",layer.selectedFeatureCount(),"features"
-
-	if layer.selectedFeatureCount():
-		# legge le features e pulisce
-		feat = layer.selectedFeatures().pop()
-		layer.removeSelection()
-		# legge la geometria
-		geom = feat.geometry()
-		gT = layer.geometryType()
-		print "geometria tipo",gT
-		if gT == 0:
-			p = geom.asPoint()
-			print "trovata",feat.id()
-			return p
-		elif gT == 1:
-			line = geom.asPolyline()
-			# scandisce i vertici
-			for p in line:
-				if abs(point.x()-p.x()) <= eps and abs(point.y()-p.y()) <= eps:
-					print "trovata",feat.id()
-					return p
-		elif gT == 2:
-			print "layer di poligoni"
-			plines = geom.asPolygon()
-			# cerca il vertice
-			for line in plines:
-				for p in line:
-					print "confronto punto",point.x(),point.y(),"con punto",p.x(),p.y()
-					if abs(point.x()-p.x()) <= eps and abs(point.y()-p.y()) <= eps:
-						print "trovata",feat.id()
-						return p
-	return []
 
 # -------- layer functions -------
 
@@ -376,7 +329,6 @@ class VectorGeorefDialog(QtGui.QDialog):
 	markerList1 = []	# lista dei marcatori del canvas1
 	markerList2 = []	# lista dei marcatori del canvas2
 	anTxtList = []		# lista delle annotazioni
-	checked_list = []	# lista delle righe scelte
 
 	def __init__(self, iface):
 		QtGui.QDialog.__init__(self)
@@ -386,7 +338,6 @@ class VectorGeorefDialog(QtGui.QDialog):
 		self.ui = Ui_VectorGeoref()
 		self.ui.setupUi(self)
 		self.customize_GUI()
-
 		# connect the layer changed handler to a signal that the TOC layer has changed
 		QObject.connect(self.iface,SIGNAL("currentLayerChanged(QgsMapLayer *)"), self.myHandleLayerChange)
 		# inizializza i dati sul layer
@@ -424,11 +375,8 @@ class VectorGeorefDialog(QtGui.QDialog):
 			layerToSet.append(QgsMapCanvasLayer(self.vLayer, True, False))
 			self.mapPreview.setLayerSet(layerToSet)
 			self.mapPreview.zoomToFullExtent()
-			# stabilisce la tolleranza di ricerca
-			self.eps2 = self.mapPreview.mapUnitsPerPixel() * 5
 			# azzera la tabella dei CP
 			self.on_pushButton_clear_pressed()
-
 
 	def on_pushButton_run_pressed(self):
 		# legge i dati della tabella...
@@ -436,9 +384,8 @@ class VectorGeorefDialog(QtGui.QDialog):
 		#  .. e li deposita nelle due liste
 		srcPntList = []
 		dstPntList = []
-		for [chek,oX,oY,dX,dY] in tmp:
-			#QMessageBox.about(self,'test',chek)
-			if chek == 'ok':
+		for [check,oX,oY,dX,dY] in tmp:
+			if check == 'ok':
 				srcPntList.append([float(oX),float(oY),1.0])	# aggiunge la coordinata omogenea
 				dstPntList.append([float(dX),float(dY),1.0])
 #				print "il punto (%s %s) va in (%s %s)" % (oX,oY,dX,dY)
@@ -466,8 +413,19 @@ class VectorGeorefDialog(QtGui.QDialog):
 						polygTransform(newLayer,mat)
 					# Commit changes
 					newLayer.commitChanges()
+					# set CRS
+					render = self.canvas.mapRenderer()
+					curCrs = render.destinationCrs()
+					newLayer.setCoordinateSystem(curCrs)
 					# update layer's extent
 					newLayer.updateExtents()
+					# user warning
+					self.iface.messageBar().pushMessage(
+						"on_pushButton_run_pressed",
+						"Layer in memory, save it!",
+						level=QgsMessageBar.INFO,
+						duration=4
+					)
 				else:
 					self.iface.messageBar().pushMessage(
 						"on_pushButton_run_pressed",
@@ -491,10 +449,106 @@ class VectorGeorefDialog(QtGui.QDialog):
 		self.ui.tableWidget.setRowCount(0)
 		# pulisce lo schermo
 		self.cleanSelection()
-		
-	def on_actionPan_toggled(self):
-		self.toolPan = QgsMapToolPan(self.mapPreview)
-		self.mapPreview.setMapTool(self.toolPan)
+
+	def on_pushButton_save_CPT_pressed(self):
+		"""
+			salva i CTP su file
+		"""
+		if self.vLayer:
+			# legge i dati della tabella...
+			tmp = self.getValues()
+			# crea il file di output
+			fname = self.vLayer.name() + '.ctp'
+			f = open(fname,'w')
+			if f:
+				# salva i CRS (source & dest) coinvolti
+				srcCrs = self.vLayer.crs().authid()
+				curCrs = self.canvas.mapRenderer().destinationCrs().authid()
+				f.write("%s %s\n" %(srcCrs,curCrs))
+				#  .. e salva i punti
+				for [check,oX,oY,dX,dY] in tmp:
+					f.write("%s %s %s %s %s\n" % (check,oX,oY,dX,dY))
+				f.close()
+				self.iface.messageBar().pushMessage(
+					"on_pushButton_save_pressed",
+					"C(ontrol) T(errain) Points salvati su "+fname,
+					level=QgsMessageBar.INFO,
+					duration=3
+				)
+			else:
+				self.iface.messageBar().pushMessage(
+					"on_pushButton_save_pressed",
+					"errore: impossibile aprire il file"+fname,
+					level=QgsMessageBar.CRITICAL,
+					duration=3
+				)
+		else:
+			self.iface.messageBar().pushMessage(
+				"on_pushButton_save_pressed",
+				"errore: devi prima aprire il layer e definire i punti di controllo",
+				level=QgsMessageBar.CRITICAL,
+				duration=3
+			)
+
+	def on_pushButton_read_CPT_pressed(self):
+		"""
+			legge i CTP salvati su file
+		"""
+		if self.vLayer:
+			# pulisce la maschera
+			self.on_pushButton_clear_pressed()
+			# legge il file di input
+			fname = QFileDialog.getOpenFileName(self.iface.mainWindow(),'Open file','/home/giuliano','*.ctp')
+			if fname:
+				f = open(fname,'r')
+				if f:
+					tmp = f.readline()
+					srcCrs,curCrs = tmp.split(' ')
+					srcCrs = srcCrs.rstrip()
+					curCrs = curCrs.rstrip()
+					if srcCrs != self.vLayer.crs().authid():
+						self.iface.messageBar().pushMessage(
+							"on_pushButton_read_pressed",
+							"errore: il CRS di provenienza non coincide con quello del layer da trasformare",
+							level=QgsMessageBar.CRITICAL,
+							duration=3
+						)
+					elif curCrs != self.canvas.mapRenderer().destinationCrs().authid():
+						self.iface.messageBar().pushMessage(
+							"on_pushButton_read_pressed",
+							"errore: il CRS di destinazione non coincide con quello quello corrente",
+							level=QgsMessageBar.CRITICAL,
+							duration=3
+						)
+					else:
+						for tmp in f:
+							check,origX,origY,destX,destY = tmp.split()
+							self.insertNewRow([check,origX,origY,destX,destY])
+							vertex = QgsPoint(float(origX),float(origY))
+							self.markerList2.append(self.pntHighligth(self.mapPreview,vertex,color=QColor(250,150,0),size=25))
+							vertex = QgsPoint(float(destX),float(destY))
+							self.markerList1.append(self.pntHighligth(self.canvas,vertex,color=QColor(250,150,0),size=25))
+				else:
+					self.iface.messageBar().pushMessage(
+						"on_pushButton_read_pressed",
+						"errore: impossibile aprire il file"+fname,
+						level=QgsMessageBar.CRITICAL,
+						duration=3
+					)
+			else:
+				self.iface.messageBar().pushMessage(
+					"on_pushButton_read_pressed",
+					"errore: dammi un file valido",
+					level=QgsMessageBar.CRITICAL,
+					duration=3
+				)	
+		else:
+			self.iface.messageBar().pushMessage(
+				"on_pushButton_save_pressed",
+				"errore: devi prima aprire il layer e definire i punti di controllo",
+				level=QgsMessageBar.CRITICAL,
+				duration=3
+			)
 
 # ----------- utility functions ----------------
 
@@ -502,8 +556,6 @@ class VectorGeorefDialog(QtGui.QDialog):
 		if self.iface.activeLayer():
 			# registra il layer corrente
 			self.cLayer = self.iface.activeLayer()
-			# al cambio del layer stabilisce la tolleranza di ricerca
-			self.eps = self.canvas.mapUnitsPerPixel() * 5
 
 	def pntHighligth(self,canvas,pnt,color=QColor(250,150,0),size=25):
 		"""
@@ -541,49 +593,22 @@ class VectorGeorefDialog(QtGui.QDialog):
 		nRow = self.ui.tableWidget.rowCount()
 		self.ui.tableWidget.insertRow(nRow)
 		for i,val in enumerate(dataList):
-
-			if i == 0:
-				item = QtGui.QTableWidgetItem()
-				item.setFlags(QtCore.Qt.ItemIsUserCheckable |QtCore.Qt.ItemIsEnabled)
-				item.setCheckState(QtCore.Qt.Unchecked)
-				self.ui.tableWidget.setItem(nRow,i,item)
-				self.ui.tableWidget.itemClicked.connect(self.handleItemClicked)
-			else:
-				item = QtGui.QTableWidgetItem(unicode(val))
-				self.ui.tableWidget.setItem(nRow,i,item)
-
-	def handleItemClicked(self, item):
-		try:
-			if item.checkState() == QtCore.Qt.Checked:
-				#QMessageBox.about(self,'test',str(item.row()))
-				self.checked_list.append(item.row())
-			else:
-				self.checked_list.remove(item.row())
-		except:
-			pass
+			item = QtGui.QTableWidgetItem(unicode(val))
+			self.ui.tableWidget.setItem(nRow,i,item)
 
 	def getValues(self):
 		"""
 			get the table values
 		"""
-		#QMessageBox.about(self,'chechedlist',str(self.checked_list))
 		nRow = self.ui.tableWidget.rowCount()
 		nCol = self.ui.tableWidget.columnCount()
 		data = []
 		for r in range(nRow):
 			riga = []
 			for c in range(nCol):
-				if c == 0:
-					if self.checked_list.count(r) != 0:
-						#QMessageBox.about(self,'riok',str(r))
-						riga.append('ok')
-					else:
-						riga.append('no')
-						#QMessageBox.about(self,'rino',str(r))
-				else:
-					item = self.ui.tableWidget.item(r,c)
-
-					riga.append(item.text())
+				item = self.ui.tableWidget.item(r,c)
+				print item.text()
+				riga.append(item.text())
 			data.append(riga)
 		return data
 
@@ -639,11 +664,18 @@ class VectorGeorefDialog(QtGui.QDialog):
 		NB: controllare che i punti non coincidano
 		"""
 		if self.isClickToolActivated == 2:
-			pnt = snapPoint(self.vLayer,point,self.eps2)
-			if pnt:
-				self.origX,self.origY = pnt.x(),pnt.y()
+			# trasforma in screen coordinates
+			newPoint = self.mapPreview.getCoordinateTransform().transform(point)
+			# .. e in QPoint
+			pnt = QPoint(newPoint.x(),newPoint.y())
+			# attiva lo snapper
+			mySnapper = QgsMapCanvasSnapper(self.mapPreview)
+			(reval, snapped) = mySnapper.snapToBackgroundLayers(pnt)
+			if snapped != []:
+				vertex = QgsPoint(snapped[0].snappedVertex.x(), snapped[0].snappedVertex.y())
+				self.origX,self.origY = vertex.x(),vertex.y()
 #				print "punto origine",self.origX,self.origY
-				self.markerList2.append(self.pntHighligth(self.mapPreview,pnt,color=QColor(250,150,0),size=25))
+				self.markerList2.append(self.pntHighligth(self.mapPreview,vertex,color=QColor(250,150,0),size=25))
 				self.firstPntDone = True
 				self.vecLayGeorefTool()
 			else:
@@ -653,13 +685,20 @@ class VectorGeorefDialog(QtGui.QDialog):
 					"nessun punto individuato"
 				)
 		else:
-			pnt = snapPoint(self.cLayer,point,self.eps)
-			if pnt:
-				destX,destY = pnt.x(),pnt.y()
+			# trasforma in screen coordinates
+			newPoint = self.canvas.getCoordinateTransform().transform(point)
+			# .. e in QPoint
+			pnt = QPoint(newPoint.x(),newPoint.y())
+			# attiva lo snapper
+			mySnapper = QgsMapCanvasSnapper(self.canvas)
+			(reval, snapped) = mySnapper.snapToCurrentLayer(pnt,QgsSnapper.SnapToVertex)
+			if snapped != []:
+				vertex = QgsPoint(snapped[0].snappedVertex.x(), snapped[0].snappedVertex.y())
+				destX,destY = vertex.x(),vertex.y()
 #				print "punto destinazione",destX,destY
-				self.markerList1.append(self.pntHighligth(self.canvas,pnt,color=QColor(250,150,0),size=25))
+				self.markerList1.append(self.pntHighligth(self.canvas,vertex,color=QColor(250,150,0),size=25))
 				# accoda alla tabella
-				self.insertNewRow(['',self.origX,self.origY,destX,destY])
+				self.insertNewRow(['ok',self.origX,self.origY,destX,destY])
 				# try to disconnect all signals
 				if self.isClickToolActivated == 1:
 					self.clickTool1.canvasClicked.disconnect()
