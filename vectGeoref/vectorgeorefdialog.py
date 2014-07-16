@@ -122,17 +122,17 @@ class VectorGeorefDialog(QtGui.QDialog, Matrix_functions):
 					lN = self.vLayer.name()+'-modificato'
 					newLayer = self.cloneLayer(self.vLayer,vtype[gT],lN)
 					# calcola la matrice ai minimi quadrati
-					mat = lsm2(srcPntList,dstPntList)
-#					printMatrix(mat)
+					mat = self.lsm2(srcPntList,dstPntList)
+#					self.printMatrix(mat)
 					if gT == 0:
 #						print "layer puntuale"
-						pointTransform(newLayer,mat)
+						self.pointTransform(newLayer,mat)
 					elif gT == 1:
 #						print "layer lineare"
-						lineTransform(newLayer,mat)
+						self.lineTransform(newLayer,mat)
 					elif gT == 2:
 #						print "layer poligonale"
-						polygTransform(newLayer,mat)
+						self.polygTransform(newLayer,mat)
 					# Commit changes
 					newLayer.commitChanges()
 					# set CRS
@@ -470,7 +470,7 @@ class VectorGeorefDialog(QtGui.QDialog, Matrix_functions):
 		for feat in layer.getFeatures():
 			geom = feat.geometry()
 			p = geom.asPoint()
-			cds = matrixMultiplication(matrix,[[p.x()],[p.y()],[1]])
+			cds = self.matrixMultiplication(matrix,[[p.x()],[p.y()],[1]])
 	#		print cds
 			geom = QgsGeometry.fromPoint(QgsPoint(cds[0][0],cds[1][0]))
 			layer.changeGeometry(feat.id(),geom)
@@ -485,7 +485,7 @@ class VectorGeorefDialog(QtGui.QDialog, Matrix_functions):
 			# costruisce la nuova
 			newLine = []
 			for p in line:
-				cds = matrixMultiplication(matrix,[[p.x()],[p.y()],[1]])
+				cds = self.matrixMultiplication(matrix,[[p.x()],[p.y()],[1]])
 	#			print cds
 				newLine.append(QgsPoint(cds[0][0],cds[1][0]))
 			geom = QgsGeometry.fromPolyline(newLine)
@@ -504,7 +504,7 @@ class VectorGeorefDialog(QtGui.QDialog, Matrix_functions):
 				# costruisce il nuovo poligono
 				newLine = []
 				for v in line:
-					cds = matrixMultiplication(matrix,[[v.x()],[v.y()],[1]])
+					cds = self.matrixMultiplication(matrix,[[v.x()],[v.y()],[1]])
 	#				print cds
 					newLine.append(QgsPoint(cds[0][0],cds[1][0]))
 				# aggiorna la geometria

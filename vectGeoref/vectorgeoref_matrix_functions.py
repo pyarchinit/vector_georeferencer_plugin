@@ -43,7 +43,7 @@ class Matrix_functions:
 			print
 		print "------" * (nc+2)
 
-	def nullMatrixself(self, nr,nc):
+	def nullMatrix(self, nr,nc):
 		"""
 		resituisce la matrice nulla di nr x nc
 		"""
@@ -75,7 +75,7 @@ class Matrix_functions:
 		"""
 		nr = len(mat)
 		nc = len(mat[0])
-		matT = nullMatrix(nc,nr)
+		matT = self.nullMatrix(nc,nr)
 		for r in range(nr):
 			for c in range(nc):
 				matT[c][r] = mat[r][c]
@@ -184,25 +184,25 @@ class Matrix_functions:
 			non diagonale, la routine potrebbe dare dei problemi; in caso modificare
 		"""
 		print "devo far coincidere i punti"
-		printMatrix(old)
+		self.printMatrix(old)
 		print "con i punti"
-		printMatrix(new)
+		self.printMatrix(new)
 		print "matrice trasposta"
-		oldT = matrixTranspose(old)
-		printMatrix(oldT)
+		oldT = self.matrixTranspose(old)
+		self.printMatrix(oldT)
 		print "matrice normale"
-		mat = matrixMultiplication(oldT,old)
-		printMatrix(mat)
+		mat = self.matrixMultiplication(oldT,old)
+		self.printMatrix(mat)
 		print "Termine noto"
-		tn = matrixMultiplication(oldT,new)
-		printMatrix(tn)
+		tn = self.matrixMultiplication(oldT,new)
+		self.printMatrix(tn)
 		print "matrice aggiunta"
 		nr = len(mat)
-		mat = adjoint(mat,nr,tn)
-		printMatrix(mat)
+		mat = self.adjoint(mat,nr,tn)
+		self.printMatrix(mat)
 		print "Echelon form"
-		EchelonNF(mat)
-		printMatrix(mat)
+		self.EchelonNF(mat)
+		self.printMatrix(mat)
 		print "(Experimental) normalization"
 		for i in range(nr):
 			if abs(mat[i][i] - 1.00) > 0.005:	#ATTENZIONE: noi accettiamo anche una forma con pivot disposti diversamente!
@@ -212,17 +212,17 @@ class Matrix_functions:
 					print "element",k,mat[i][k],
 					mat[i][k] = mat[i][k] * alfa
 					print "become",mat[i][k]
-		printMatrix(mat)
+		self.printMatrix(mat)
 		# soluzione
 		sol = []
 		for i in range(len(tn[0])):	# per ogni colonna del termine noto 
 		# ma myList non esiste giò?
 			myList = [[0,nr+i]]	# questa strana forma Ã¨ dovuta a precedenti (vedi rank())
-			tmp = prelievoColonne(mat,myList)
-			tmp = matrixTranspose(tmp)
+			tmp = self.prelievoColonne(mat,myList)
+			tmp = self.matrixTranspose(tmp)
 			print tmp
 			sol.append(tmp[0])	# questa operazione Ã¨ empirica, serve ad eliminare un livello di parentesi, controllare
-		printMatrix(sol)
+		self.printMatrix(sol)
 		return sol
 
 

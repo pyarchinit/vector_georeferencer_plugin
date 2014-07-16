@@ -43,6 +43,27 @@ class VectorGeoref:
 		# initialize plugin directory
 		self.plugin_dir = os.path.dirname(__file__)
 		# initialize locale
+
+		userPluginPath = QFileInfo( QgsApplication.qgisUserDbFilePath() ).path() + "/python/plugins/pyarchinit"
+		systemPluginPath = QgsApplication.prefixPath() + "/python/plugins/pyarchinit"
+
+		overrideLocale = QSettings().value( "locale/overrideFlag", QVariant ) #.toBool()
+		if not overrideLocale:
+			localeFullName = QLocale.system().name()
+		else:
+			localeFullName = QSettings().value( "locale/userLocale", QVariant ) #.toString()
+
+		if QFileInfo( userPluginPath ).exists():
+			translationPath = userPluginPath + "/i18n/pyarchinit_plugin_" + localeFullName + ".qm"
+		else:
+			translationPath = systemPluginPath + "/i18n/pyarchinit_plugin_" + localeFullName + ".qm"
+
+		self.localePath = translationPath
+		if QFileInfo( self.localePath ).exists():
+			self.translator = QTranslator()
+			self.translator.load( self.localePath )
+			QCoreApplication.installTranslator( self.translator )
+		"""
 		locale = QSettings().value("locale/userLocale")[0:2]
 		localePath = os.path.join(self.plugin_dir, 'i18n', 'vectorgeoref_{}.qm'.format(locale))
 		if os.path.exists(localePath):
@@ -50,6 +71,7 @@ class VectorGeoref:
 			self.translator.load(localePath)
 			if qVersion() > '4.3.3':
 				QCoreApplication.installTranslator(self.translator)
+		"""
 		# Create the dialog (after translation) and keep reference
 		self.dlg = VectorGeorefDialog(self.iface)
 
